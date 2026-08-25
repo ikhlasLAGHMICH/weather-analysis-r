@@ -2,7 +2,7 @@ library(dplyr)
 library(lubridate)
 
 # Charger les données brutes
-weather_raw <- read.csv("weather-analysis-r/data/raw/weather_raw.csv")
+weather_raw <- read.csv("data/raw/weather_raw.csv")
 
 # Nettoyage et création de nouvelles variables
 weather_clean <- weather_raw |>
@@ -39,15 +39,15 @@ table(weather_clean$season)
 
 table(weather_clean$rain_flag)
 
-dir.create("weather-analysis-r/data/processed", recursive = TRUE, showWarnings = FALSE)
+dir.create("data/processed", recursive = TRUE, showWarnings = FALSE)
 
 write.csv(
   weather_clean,
-  "weather-analysis-r/data/processed/weather_clean.csv",
+  "data/processed/weather_clean.csv",
   row.names = FALSE
 )
 
-message("Données nettoyées sauvegardées dans weather-analysis-r/data/processed/weather_clean.csv")
+message("Données nettoyées sauvegardées dans data/processed/weather_clean.csv")
 
 # Contrôles qualité métier
 
@@ -100,6 +100,6 @@ sum(weather_clean$rain < 0)
 
 write.csv(
   quality_report,
-  "weather-analysis-r/data/processed/quality_report.csv",
+  "data/processed/quality_report.csv",
   row.names = FALSE
 )

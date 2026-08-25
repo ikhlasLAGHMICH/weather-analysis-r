@@ -92,13 +92,13 @@ table(weather_raw$city)
 colSums(is.na(weather_raw))
 
 # Création du dossier si nécessaire
-dir.create("weather-analysis-r/data/raw", recursive = TRUE, showWarnings = FALSE)
+dir.create("data/raw", recursive = TRUE, showWarnings = FALSE)
 
 # Export CSV
 write.csv(
   weather_raw,
-  "weather-analysis-r/data/raw/weather_raw.csv",
+  "data/raw/weather_raw.csv",
   row.names = FALSE
 )
 
-message("Données sauvegardées dans weather-analysis-r/data/raw/weather_raw.csv")
+message("Données sauvegardées dans data/raw/weather_raw.csv")
