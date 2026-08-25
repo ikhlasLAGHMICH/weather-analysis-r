@@ -250,13 +250,16 @@ Structurer et stocker les données nettoyées dans une base SQL afin de disposer
 
 ## Travail réalisé
 
-> À compléter par le membre responsable de la Mission 2.
+- PostgreSQL 16 exécuté avec Docker Compose ;
+- schéma SQL rejouable avec clés, contraintes et index ;
+- normalisation des villes ;
+- import bulk transactionnel et idempotent depuis R ;
+- agrégation journalière calculée automatiquement en SQL ;
+- contrôles qualité bloquants après chaque import.
 
 ## Structure de la base
 
-> À compléter.
-
-Tables envisagées :
+Tables retenues :
 
 ```text
 cities
@@ -267,32 +270,112 @@ predictions
 
 ## Clés primaires et étrangères
 
-> À compléter.
+- `cities.city_id` : clé primaire des villes ;
+- `weather_hourly.weather_id` : clé primaire et unicité `(city_id, datetime)` ;
+- `weather_daily.daily_id` : clé primaire et unicité `(city_id, date)` ;
+- `predictions.prediction_id` : clé primaire ;
+- les trois tables métier référencent `cities.city_id`.
+
+Les coordonnées sont stockées une seule fois dans `cities`. Des contraintes `CHECK`
+protègent notamment l'humidité, la couverture nuageuse, le vent, les
+précipitations, le mois, l'heure, la saison et les indicateurs binaires.
 
 ## Schéma SQL
 
-> À compléter.
+Le fichier `sql/schema.sql` est monté comme dossier d'initialisation Docker pour
+un volume neuf. La commande `make db-schema` permet aussi de le réappliquer
+explicitement sur un volume existant.
 
 ## Injection des données depuis R
 
-> À compléter.
+`R/03_database.R` lit `data/processed/weather_clean.csv`, vérifie ses 19 colonnes,
+alimente `cities`, puis copie les 219 120 mesures vers une table temporaire.
+Un `INSERT ... ON CONFLICT DO UPDATE` charge ensuite `weather_hourly` en une seule
+opération. L'ensemble est protégé par une transaction.
+
+L'import est idempotent : relancer `make database` met à jour les couples
+`(city_id, datetime)` existants sans créer de doublon. `weather_daily` est ensuite
+recalculée depuis la table horaire. Son `rain_flag` vaut 1 si au moins une mesure
+horaire du jour indique de la pluie. La table `predictions` reste intacte et vide
+tant qu'aucun modèle ne l'alimente.
 
 ## Contrôles de cohérence après injection
 
-> À compléter.
+Le script compare les nombres de villes et de mesures au CSV, vérifie les
+doublons, les clés orphelines, les bornes métier, la cohérence des composantes de
+date et le nombre attendu de couples ville/jour. Une anomalie provoque un code de
+sortie non nul.
 
 ## Connexion et sécurité
 
-> À compléter.
+Les identifiants ne sont jamais écrits dans le code. Ils viennent des variables
+`POSTGRES_DB`, `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_HOST` et
+`POSTGRES_PORT`. `.env` est ignoré par Git ; `.env.example` sert de modèle. Comme
+R s'exécute sur l'hôte, `POSTGRES_HOST=localhost`.
 
 ## Fichiers associés
 
 ```text
 R/03_database.R
-sql/
+sql/schema.sql
+docker-compose.yml
+.env.example
+Makefile
 ```
 
-> À compléter avec les fichiers réellement utilisés.
+## Installation et exécution
+
+Prérequis : R 4.5, Docker avec le plugin Compose, GNU Make et les bibliothèques
+système nécessaires aux paquets R. Sous Debian/Ubuntu, la compilation requiert
+notamment `libcurl4-openssl-dev`, `libssl-dev`, `pkg-config` et `libpq-dev`.
+Installez-les séparément avec le gestionnaire de paquets de votre système ; le
+pipeline n'exécute volontairement aucune commande `sudo`.
+
+Depuis la racine du dépôt :
+
+```bash
+cp .env.example .env
+make install
+make data
+make db-up
+make database
+```
+
+Pour rejouer toute la chaîne API → nettoyage → PostgreSQL :
+
+```bash
+make pipeline
+```
+
+Cette commande rappelle l'API. Si les CSV existent déjà et que vous souhaitez
+seulement rejouer la partie SQL, utilisez `make database`.
+
+## Commandes PostgreSQL utiles
+
+```bash
+make db-status
+make db-schema
+make db-down
+make db-reset
+```
+
+`db-down` conserve le volume. `db-reset` est destructif : il supprime le volume
+et toutes les données PostgreSQL ; il n'est jamais appelé par le pipeline.
+
+Pour inspecter rapidement les tables :
+
+```bash
+docker compose exec postgres psql -U weather_user -d weather_db -c '\\dt'
+docker compose exec postgres psql -U weather_user -d weather_db -c \
+  'SELECT COUNT(*) FROM weather_hourly;'
+```
+
+## Dépannage minimal
+
+- `RPostgres` ne compile pas : installer les en-têtes PostgreSQL (`libpq-dev`).
+- PostgreSQL ne démarre pas : vérifier que le port défini dans `.env` est libre.
+- Tables absentes : exécuter `make db-schema`.
+- CSV absent : exécuter `make data`, ou `make clean` si le CSV brut existe déjà.
 
 ---
 

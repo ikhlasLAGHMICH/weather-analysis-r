@@ -1,2 +1,7 @@
 data/raw/
 data/processed/*.csv
+.env
+.Rhistory
+.RData
+.Ruserdata
+.Rproj.user/
