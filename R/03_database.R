@@ -1,4 +1,3 @@
-#!/usr/bin/env Rscript
 
 suppressPackageStartupMessages({
   library(DBI)
@@ -22,8 +21,6 @@ get_env <- function(name, default = NULL) {
   value
 }
 
-# Docker Compose lit .env automatiquement, contrairement à Rscript.
-# Les variables déjà exportées gardent la priorité sur le fichier local.
 if (file.exists(".env")) {
   env_lines <- trimws(readLines(".env", warn = FALSE))
   env_lines <- env_lines[nzchar(env_lines) & !startsWith(env_lines, "#")]
