@@ -25,12 +25,12 @@ if (file.exists(".env")) {
   env_lines <- trimws(readLines(".env", warn = FALSE))
   env_lines <- env_lines[nzchar(env_lines) & !startsWith(env_lines, "#")]
   for (line in env_lines) {
-    separator <- regexpr("=", line, fixed = TRUE)
-    if (separator > 1) {
-      key <- trimws(substr(line, 1, separator - 1))
-      value <- trimws(substr(line, separator + 1, nchar(line)))
+    parts <- strsplit(line, "=", fixed = TRUE)[[1]]
+    if (length(parts) >= 2) {
+      key <- trimws(parts[1])
+      value <- trimws(paste(parts[-1], collapse = "="))
       value <- sub("^(['\"])(.*)\\1$", "\\2", value)
-      if (!nzchar(Sys.getenv(key, unset = ""))) do.call(Sys.setenv, setNames(list(value), key))
+      do.call(Sys.setenv, setNames(list(value), key))
     }
   }
 }
@@ -69,11 +69,18 @@ if (anyDuplicated(city_source$city)) {
   stop("Une ville possède plusieurs couples latitude/longitude dans le CSV.", call. = FALSE)
 }
 
-con <- dbConnect(
-  RPostgres::Postgres(), dbname = config$dbname, host = config$host,
-  port = config$port, user = config$user, password = config$password
+con <- DBI::dbConnect(
+  RPostgres::Postgres(),
+  dbname = config$dbname,
+  host = config$host,
+  port = config$port,
+  user = config$user,
+  password = config$password
 )
-on.exit(if (dbIsValid(con)) dbDisconnect(con), add = TRUE)
+
+if (!DBI::dbIsValid(con)) {
+  stop("Connexion PostgreSQL invalide.", call. = FALSE)
+}
 
 required_tables <- c("cities", "weather_hourly", "weather_daily", "predictions")
 missing_tables <- setdiff(required_tables, dbListTables(con))
@@ -82,8 +89,8 @@ if (length(missing_tables) > 0) {
        ". Exécutez `make db-schema`.", call. = FALSE)
 }
 
-message("Import transactionnel vers PostgreSQL...")
-invisible(dbWithTransaction(con, {
+message("Import PostgreSQL...")
+{
   for (i in seq_len(nrow(city_source))) {
     dbExecute(con, paste(
       "INSERT INTO cities (name, latitude, longitude) VALUES ($1, $2, $3)",
@@ -132,9 +139,9 @@ invisible(dbWithTransaction(con, {
     " AVG(cloud_cover), AVG(wind_speed_10m), MAX(wind_speed_10m), MAX(rain_flag)",
     "FROM weather_hourly GROUP BY city_id, datetime::date"
   ))
-}))
+}
 
-scalar <- function(sql) dbGetQuery(con, sql)[[1]][1]
+scalar <- function(sql) as.numeric(dbGetQuery(con, sql)[[1]][1])
 checks <- c(
   cities = scalar("SELECT COUNT(*) FROM cities"),
   weather_hourly = scalar("SELECT COUNT(*) FROM weather_hourly"),
@@ -186,4 +193,7 @@ cat(sprintf("Predictions          : %s (non modifiées)\n", checks["predictions"
 cat(sprintf("Status               : %s\n", if (ok) "OK" else "ÉCHEC"))
 cat("========================================\n")
 
+DBI::dbDisconnect(con)
+
 if (!ok) stop("Les contrôles de cohérence PostgreSQL ont échoué.", call. = FALSE)
+message("Import PostgreSQL terminé avec succès.")
