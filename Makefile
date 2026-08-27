@@ -1,20 +1,25 @@
-.PHONY: help install api clean data db-up db-down db-status db-schema db-reset database pipeline
+.PHONY: help install api clean data db-up db-down db-status db-schema db-reset database pipeline analysis model test shiny all
 
 COMPOSE := docker compose
 
 help:
 	@echo "Commandes disponibles :"
-	@echo "  make install  - Restaurer les dépendances R"
-	@echo "  make api      - Récupérer les données Open-Meteo"
-	@echo "  make clean    - Nettoyer les données"
-	@echo "  make data     - Exécuter API + nettoyage"
-	@echo "  make db-up    - Démarrer PostgreSQL et attendre son état healthy"
-	@echo "  make db-down  - Arrêter PostgreSQL sans supprimer les données"
-	@echo "  make db-status - Afficher l'état du service PostgreSQL"
-	@echo "  make db-schema - Réappliquer explicitement le schéma SQL"
+	@echo "  make install  - Restaurer les dependances R"
+	@echo "  make api      - Recuperer les donnees Open-Meteo"
+	@echo "  make clean    - Nettoyer les donnees"
+	@echo "  make data     - Executer API + nettoyage"
+	@echo "  make db-up    - Demarrer PostgreSQL et attendre son etat healthy"
+	@echo "  make db-down  - Arreter PostgreSQL sans supprimer les donnees"
+	@echo "  make db-status - Afficher l'etat du service PostgreSQL"
+	@echo "  make db-schema - Reappliquer explicitement le schema SQL"
 	@echo "  make db-reset - DESTRUCTIF : supprimer le conteneur et son volume"
-	@echo "  make database - Charger le CSV nettoyé dans PostgreSQL"
-	@echo "  make pipeline - Exécuter data, PostgreSQL, schéma et import"
+	@echo "  make database - Charger le CSV nettoye dans PostgreSQL"
+	@echo "  make pipeline - Executer data, PostgreSQL, schema et import"
+	@echo "  make analysis - Lancer les visualisations (04_analysis.R)"
+	@echo "  make model    - Entrainer les modeles ML et exporter results/"
+	@echo "  make test     - Lancer tous les tests automatises (testthat)"
+	@echo "  make shiny    - Lancer l'application Shiny"
+	@echo "  make all      - Pipeline complet : data → DB → analyse → modele"
 
 install:
 	Rscript -e 'renv::restore()'
@@ -49,4 +54,19 @@ database: db-schema
 	Rscript R/03_database.R
 
 pipeline: data database
-	@echo "Pipeline API → nettoyage → PostgreSQL terminé."
+	@echo "Pipeline API -> nettoyage -> PostgreSQL termine."
+
+analysis:
+	Rscript R/04_analysis.R
+
+model:
+	Rscript R/05_model.R
+
+test:
+	Rscript tests/run_tests.R
+
+shiny:
+	Rscript -e "shiny::runApp('shiny', launch.browser = TRUE)"
+
+all: pipeline analysis model
+	@echo "Pipeline complet termine."

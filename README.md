@@ -559,71 +559,56 @@ results/
 
 ## Objectif
 
-Construire au moins un modèle prédictif à partir des données historiques.
+Construire des modèles prédictifs robustes pour anticiper diverses conditions météorologiques à partir des données historiques.
 
 ## Problème retenu
 
-> À compléter par le membre responsable du Machine Learning.
-
-### Option envisagée
-
-Prédiction de la pluie :
-
-```text
-rain_flag = 0 / 1
-```
-
-ou prédiction de la température future.
+Prédiction de **8 événements météorologiques** distincts (Pluie, Pluie forte, Orage / Tempête, Neige, Gel, Canicule, Brouillard, Risque de sécheresse) à horizon J+1. Le pipeline est conçu pour être extensible et s'entraîner sur de nouvelles cibles facilement.
 
 ## Variables utilisées
 
-> À compléter.
+- Variables météorologiques de base (Température min/max/moyenne, Humidité, Pression, Vitesse du vent).
+- Variables temporelles (Mois, Saison).
+- Variables de décalage temporel (Lags) : Conditions de la veille (Précipitations J-1, Pression J-1, Humidité J-1, Événement survenu à J-1).
 
 ## Préparation des données
 
-> À compléter.
+- Gestion des valeurs manquantes et imputation.
+- Encodage des variables catégorielles (Saison, Ville).
+- Création automatique des cibles binaires (1/0) selon des seuils spécifiques (ex: Canicule si Temp > 35°C).
+- Fractionnement des données (Train: 2021-2024 / Test: 2025).
 
-## Modèle(s) testé(s)
+## Modèles testés
 
-> À compléter.
+Pour chaque intempérie, nous entraînons et mettons en compétition deux modèles :
+- **Régression Logistique** (rapide, interprétable)
+- **Random Forest** (plus complexe, capture les interactions non linéaires via `ranger`)
 
-Exemples possibles :
-
-- régression logistique ;
-- arbre de décision ;
-- Random Forest ;
-- régression linéaire.
+Le pipeline sélectionne automatiquement le meilleur modèle pour chaque cible et le sauvegarde.
 
 ## Métriques d’évaluation
 
-> À compléter.
-
 Classification :
-
 - Accuracy
 - Precision
 - Recall
 - F1-score
-- Matrice de confusion
-
-Régression :
-
-- MAE
-- RMSE
-- R²
+- AUC-ROC
 
 ## Résultats
 
-> À compléter.
+Les modèles sont sauvegardés individuellement au format `.rds` dans le dossier `results/`. Une approche de **Lazy Loading** a été mise en place pour ne charger en mémoire que le modèle nécessaire lors de l'inférence. Les métriques globales sont consolidées dans un rapport CSV.
 
 ## Limites du modèle
 
-> À compléter.
+- La prédiction se limite à un horizon temporel de 24h (J+1).
+- Les événements rares (comme la Neige extrême à Rome) souffrent d'un léger déséquilibre de classe.
 
 ## Fichier associé
 
 ```text
 R/05_model.R
+R/model_helpers.R
 ```
 
 ---
@@ -632,17 +617,16 @@ R/05_model.R
 
 ## Objectif
 
-Restituer les analyses et prédictions dans une interface interactive.
+Restituer les analyses et prédictions dans une interface interactive et robuste.
 
 ## Fonctionnalités réalisées
 
-> À compléter par le membre responsable de Shiny.
-
-Fonctionnalités envisagées :
-
-- sélection de la ville ;
-- sélection de la période ;
-- KPI météo ;
+L'application Shiny propose une interface "Dark Mode" professionnelle avec :
+- **Dashboard interactif** : Suivi des KPIs (Température, Jours de pluie, Précipitations).
+- **Visualisations avancées (Plotly)** : Évolution temporelle, comparaisons inter-villes, matrice de corrélation, diagrammes d'importance des variables.
+- **Filtres réactifs** : Filtrage croisé par Villes et par Dates sur l'ensemble des graphiques.
+- **Module de Prédiction ML** : Interface dynamique permettant de simuler les conditions du jour J pour prédire le risque d'intempérie à J+1 (Lazy loading autonome des modèles).
+- **Résilience (Fallback Cache)** : Mécanisme de tolérance aux pannes basculant automatiquement sur un cache local (`.rds`) si la base PostgreSQL est inaccessible.
 - graphiques interactifs ;
 - comparaison des villes ;
 - affichage des prédictions.
