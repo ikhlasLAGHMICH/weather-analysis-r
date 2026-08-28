@@ -53,7 +53,8 @@ source(file.path(.root, "R", "model_helpers.R"), local = TRUE)
     host     = get_env("POSTGRES_HOST", "localhost"),
     port     = as.integer(get_env("POSTGRES_PORT", "5432")),
     user     = get_env("POSTGRES_USER"),
-    password = get_env("POSTGRES_PASSWORD")
+    password = get_env("POSTGRES_PASSWORD"),
+    connect_timeout = 5L
   )
 }
 
@@ -219,11 +220,10 @@ CUSTOM_CSS <- "
 sidebar_filters <- function(ns_prefix) {
   tagList(
     h5("Filtres", style = "color:#aaa; text-transform:uppercase; font-size:.78em; letter-spacing:.08em;"),
-    selectInput(
-      paste0("cities_", ns_prefix), "Villes",
+    checkboxGroupInput(
+      paste0("cities_", ns_prefix), "Villes (cochez pour afficher)",
       choices  = city_order,
-      selected = city_order,
-      multiple = TRUE
+      selected = city_order
     ),
     dateRangeInput(
       paste0("date_", ns_prefix), "Periode",
@@ -344,9 +344,7 @@ ui <- navbarPage(
                       choices = city_order, selected = "Paris"),
           selectInput("pred_month",  "Mois",
                       choices = setNames(1:12, month.name), selected = "11"),
-          selectInput("pred_season", "Saison",
-                      choices = c("Winter", "Spring", "Summer", "Autumn"),
-                      selected = "Autumn"),
+          uiOutput("pred_season_ui"),
           hr(),
           sliderInput("pred_temp_mean", "Temperature moyenne (C)",   -20, 45, 15, 0.5),
           sliderInput("pred_temp_min",  "Temperature min (C)",       -25, 40, 10, 0.5),
@@ -357,6 +355,8 @@ ui <- navbarPage(
           sliderInput("pred_wind_max",  "Vent max (km/h)",             0, 200, 30, 0.5),
           sliderInput("pred_cloud",     "Nebulosite (%)",              0, 100, 50, 1),
           sliderInput("pred_precip_lag1","Precipitations J-1 (mm)",   0, 100, 5, 0.5),
+          sliderInput("pred_pressure_lag1", "Pression J-1 (hPa)",     960, 1040, 1013, 0.5),
+          sliderInput("pred_humidity_lag1", "Humidite J-1 (%)",         0, 100, 70, 1),
           checkboxInput("pred_flag_lag1", "L'evenement s'est produit hier ?", value = FALSE),
           hr(),
           actionButton("predict_btn", "Predire pour demain (J+1)",
@@ -449,8 +449,10 @@ server <- function(input, output, session) {
       APP_DATA$monthly |>
         filter(city %in% cities, date >= dates[1], date <= dates[2])
     } else if (APP_DATA$mode == "cache") {
-      cities <- .get_cities(prefix)
-      APP_DATA$temperature_monthly |> filter(city %in% cities)
+      cities <- .get_cities(prefix); dates <- .get_dates(prefix)
+      req(length(cities) > 0, !anyNA(dates))
+      APP_DATA$temperature_monthly |>
+        filter(city %in% cities, date >= dates[1], date <= dates[2])
     }
   }
 
@@ -621,7 +623,9 @@ server <- function(input, output, session) {
       .filter_monthly("rain")
     } else if (APP_DATA$mode == "cache") {
       cities_sel <- .get_cities("rain"); req(length(cities_sel) > 0)
-      APP_DATA$precipitation_monthly |> dplyr::filter(city %in% cities_sel)
+      dates <- .get_dates("rain"); req(!anyNA(dates))
+      APP_DATA$precipitation_monthly |>
+        dplyr::filter(city %in% cities_sel, date >= dates[1], date <= dates[2])
     } else return(plotly_empty())
     
     req(nrow(d) > 0)
@@ -715,6 +719,14 @@ server <- function(input, output, session) {
   })
 
   # ── Prediction ────────────────────────────────────────────
+  output$pred_season_ui <- renderUI({
+    month_value <- if (is.null(input$pred_month)) 1L else as.integer(input$pred_month)
+    tags$p(
+      tags$strong("Saison : "), assign_season(month_value),
+      style = "color:#aaa; margin-bottom:12px;"
+    )
+  })
+
   current_model <- reactive({
     target <- input$pred_target
     if (is.null(target)) return(NULL)
@@ -729,13 +741,22 @@ server <- function(input, output, session) {
     model_bundle <- current_model()
     req(!is.null(model_bundle))
 
-    req(
+    numeric_inputs <- c(
       input$pred_temp_min, input$pred_temp_max, input$pred_temp_mean,
       input$pred_humidity, input$pred_pressure, input$pred_wind_mean,
-      input$pred_wind_max, input$pred_cloud, input$pred_month,
-      input$pred_season, input$pred_city, !is.null(input$pred_flag_lag1),
-      input$pred_precip_lag1
+      input$pred_wind_max, input$pred_cloud, input$pred_precip_lag1,
+      input$pred_pressure_lag1, input$pred_humidity_lag1
     )
+    req(length(numeric_inputs) == 11L, all(is.finite(numeric_inputs)))
+    req(input$pred_month, input$pred_city, !is.null(input$pred_flag_lag1))
+    validate(
+      need(input$pred_temp_min <= input$pred_temp_mean,
+           "La temperature moyenne doit etre superieure ou egale au minimum."),
+      need(input$pred_temp_mean <= input$pred_temp_max,
+           "La temperature moyenne doit etre inferieure ou egale au maximum.")
+    )
+
+    pred_month <- as.integer(input$pred_month)
 
     new_obs <- data.frame(
       temp_min         = input$pred_temp_min,
@@ -746,13 +767,13 @@ server <- function(input, output, session) {
       wind_speed_mean  = input$pred_wind_mean,
       wind_speed_max   = input$pred_wind_max,
       cloud_cover_mean = input$pred_cloud,
-      month            = as.integer(input$pred_month),
-      season           = input$pred_season,
+      month            = pred_month,
+      season           = assign_season(pred_month),
       city             = input$pred_city,
       flag_lag1        = as.integer(input$pred_flag_lag1),
       precip_lag1      = input$pred_precip_lag1,
-      pressure_lag1    = input$pred_pressure,
-      humidity_lag1    = input$pred_humidity,
+      pressure_lag1    = input$pred_pressure_lag1,
+      humidity_lag1    = input$pred_humidity_lag1,
       stringsAsFactors = FALSE
     )
 
@@ -807,7 +828,15 @@ server <- function(input, output, session) {
     
     m <- model_bundle$metrics
     # Convertir 'm' en un data.frame a une seule ligne pour l'affichage (le meilleur modele choisi)
-    tags$table(class="table table-dark table-sm table-hover",
+    status_warning <- if (!is.null(model_bundle$evaluation_status) &&
+                          model_bundle$evaluation_status != "valid") {
+      div(
+        class = "mode-banner",
+        icon("exclamation-triangle"),
+        "Evaluation non concluante : la periode de test ne permet pas de mesurer correctement la detection des cas positifs."
+      )
+    }
+    tagList(status_warning, tags$table(class="table table-dark table-sm table-hover",
       tags$thead(tags$tr(
         tags$th("Modele"), tags$th("Accuracy"), tags$th("Precision"),
         tags$th("Recall"), tags$th("F1"), tags$th("AUC-ROC")
@@ -823,7 +852,7 @@ server <- function(input, output, session) {
           tags$td(m$auc)
         )
       )
-    )
+    ))
   })
 
   output$importance_chart <- renderPlotly({
@@ -861,5 +890,3 @@ server <- function(input, output, session) {
 # LANCEMENT
 # ============================================================
 shinyApp(ui, server)
-
-

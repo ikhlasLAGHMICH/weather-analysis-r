@@ -573,10 +573,10 @@ Prédiction de **8 événements météorologiques** distincts (Pluie, Pluie fort
 
 ## Préparation des données
 
-- Gestion des valeurs manquantes et imputation.
+- Suppression des lignes rendues incomplètes par la création des décalages J-1/J+1.
 - Encodage des variables catégorielles (Saison, Ville).
-- Création automatique des cibles binaires (1/0) selon des seuils spécifiques (ex: Canicule si Temp > 35°C).
-- Fractionnement des données (Train: 2021-2024 / Test: 2025).
+- Création automatique des cibles binaires (1/0) selon des seuils documentés.
+- Fractionnement temporel strict : entraînement 2021-2023, validation et choix du seuil en 2024, évaluation finale en 2025.
 
 ## Modèles testés
 
@@ -584,7 +584,9 @@ Pour chaque intempérie, nous entraînons et mettons en compétition deux modèl
 - **Régression Logistique** (rapide, interprétable)
 - **Random Forest** (plus complexe, capture les interactions non linéaires via `ranger`)
 
-Le pipeline sélectionne automatiquement le meilleur modèle pour chaque cible et le sauvegarde.
+Le pipeline sélectionne automatiquement le meilleur modèle sur le jeu de validation,
+optimise son seuil de décision selon le F1-score, puis publie les métriques finales
+sur 2025. Le jeu de test n'est donc pas utilisé pour choisir le gagnant.
 
 ## Métriques d’évaluation
 
@@ -602,7 +604,10 @@ Les modèles sont sauvegardés individuellement au format `.rds` dans le dossier
 ## Limites du modèle
 
 - La prédiction se limite à un horizon temporel de 24h (J+1).
-- Les événements rares (comme la Neige extrême à Rome) souffrent d'un léger déséquilibre de classe.
+- Les événements rares souffrent d'un fort déséquilibre de classe ; leurs scores
+  d'accuracy doivent être interprétés avec la précision, le recall, le F1 et l'AUC.
+- Brouillard et risque de sécheresse sont des extensions conservées sous forme de
+  proxys définis par des seuils, et non des observations officielles d'événements.
 
 ## Fichier associé
 
@@ -637,13 +642,21 @@ L'application Shiny propose une interface "Dark Mode" professionnelle avec :
 
 ## Lancement de l'application
 
-> À compléter.
+Depuis la racine du projet :
+
+```bash
+make install
+make shiny
+```
+
+L'application tente PostgreSQL pendant au maximum quelques secondes, puis bascule
+sur le cache local si la base est indisponible. En mode cache, seuls les objets
+pré-calculés disponibles peuvent être filtrés avec la même granularité que la base.
 
 ## Fichiers associés
 
 ```text
-shiny/
-app.R
+shiny/app.R
 ```
 
 ---

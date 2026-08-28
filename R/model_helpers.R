@@ -286,6 +286,31 @@ compute_metrics <- function(actual, predicted_class,
   )
 }
 
+#' Choisit sur un jeu de validation le seuil maximisant le score F1.
+#' Retourne 0.5 lorsque la cible ne contient pas les deux classes.
+optimize_f1_threshold <- function(actual, predicted_prob,
+                                  candidates = seq(0.05, 0.95, by = 0.01)) {
+  stopifnot(
+    is.factor(actual),
+    identical(levels(actual), c("No", "Yes")),
+    length(actual) == length(predicted_prob),
+    all(is.finite(predicted_prob)),
+    all(predicted_prob >= 0 & predicted_prob <= 1)
+  )
+  if (length(unique(actual)) < 2L) return(0.5)
+
+  scores <- vapply(candidates, function(threshold) {
+    predicted <- factor(
+      ifelse(predicted_prob >= threshold, "Yes", "No"),
+      levels = c("No", "Yes")
+    )
+    score <- compute_metrics(actual, predicted)$f1
+    if (is.na(score)) -Inf else score
+  }, numeric(1L))
+
+  if (all(!is.finite(scores))) 0.5 else candidates[which.max(scores)]
+}
+
 # ============================================================
 # 6. INFERENCE — PREDICTION MULTI-INTEMPERIES
 # ============================================================

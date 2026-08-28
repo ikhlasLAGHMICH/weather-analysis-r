@@ -7,10 +7,10 @@
 #   2. Generation des 8 cibles via create_multi_targets()
 #   3. Boucle sur les 8 intemperies (WEATHER_EVENTS)
 #      a. Feature engineering (lags, cibles J+1)
-#      b. Split temporel train (2021-2024) / test (2025)
+#      b. Split temporel train (2021-2023) / validation (2024) / test (2025)
 #      c. Regression Logistique & Random Forest
-#      d. Evaluation (F1, AUC, etc.)
-#      e. Selection du meilleur modele, compression et sauvegarde (.rds)
+#      d. Choix du seuil et du modele sur la validation
+#      e. Evaluation finale, compression et sauvegarde (.rds)
 #      f. Persistance des predictions test dans PostgreSQL
 #   4. Export d'un CSV consolide de toutes les metriques
 # ============================================================
@@ -55,7 +55,8 @@ con <- DBI::dbConnect(
   host     = config$host,
   port     = config$port,
   user     = config$user,
-  password = config$password
+  password = config$password,
+  connect_timeout = 5L
 )
 
 if (!DBI::dbIsValid(con)) stop("Connexion PostgreSQL invalide.", call. = FALSE)
@@ -102,8 +103,9 @@ rm(con)
 # 3. BOUCLE D'ENTRAINEMENT SUR LES 8 CIBLES
 # ============================================================
 
-SEASON_LEVELS <- c("Winter", "Spring", "Summer", "Autumn")
-TRAIN_CUTOFF  <- as.Date("2025-01-01")
+SEASON_LEVELS    <- c("Winter", "Spring", "Summer", "Autumn")
+VALIDATION_START <- as.Date("2024-01-01")
+TEST_START       <- as.Date("2025-01-01")
 
 FEATURES <- c(
   "temp_min", "temp_max", "temp_mean",
@@ -137,12 +139,13 @@ for (event_key in names(WEATHER_EVENTS)) {
     season_levels = SEASON_LEVELS
   )
   
-  # b. Split temporel
-  train <- model_data |> filter(date < TRAIN_CUTOFF)
-  test  <- model_data |> filter(date >= TRAIN_CUTOFF)
+  # b. Split temporel strict : selection sur 2024, evaluation finale sur 2025.
+  train      <- model_data |> filter(date < VALIDATION_START)
+  validation <- model_data |> filter(date >= VALIDATION_START, date < TEST_START)
+  test       <- model_data |> filter(date >= TEST_START)
   
-  if (nrow(train) == 0 || nrow(test) == 0) {
-    warning("Train ou test vide pour ", event_key, " — Skip.")
+  if (nrow(train) == 0 || nrow(validation) == 0 || nrow(test) == 0) {
+    warning("Train, validation ou test vide pour ", event_key, " — Skip.")
     next
   }
   
@@ -155,8 +158,10 @@ for (event_key in names(WEATHER_EVENTS)) {
   # c. Regression Logistique
   # cat("  - LR...")
   lr_model <- glm(formula_ml, data = train, family = binomial)
+  lr_validation_prob <- predict(lr_model, newdata = validation, type = "response")
+  lr_threshold <- optimize_f1_threshold(validation$target, lr_validation_prob)
   lr_prob  <- predict(lr_model, newdata = test, type = "response")
-  lr_class <- factor(ifelse(lr_prob >= 0.5, "Yes", "No"), levels = c("No", "Yes"))
+  lr_class <- factor(ifelse(lr_prob >= lr_threshold, "Yes", "No"), levels = c("No", "Yes"))
   metrics_lr <- compute_metrics(test$target, lr_class, lr_prob, "Logistic Regression")
   
   # d. Random Forest
@@ -172,11 +177,13 @@ for (event_key in names(WEATHER_EVENTS)) {
     num.threads = 1L,
     seed        = 42L
   )
+  rf_validation_prob <- predict(rf_model, data = validation)$predictions[, "Yes"]
+  rf_threshold <- optimize_f1_threshold(validation$target, rf_validation_prob)
   rf_prob  <- predict(rf_model, data = test)$predictions[, "Yes"]
-  rf_class <- factor(ifelse(rf_prob >= 0.5, "Yes", "No"), levels = c("No", "Yes"))
+  rf_class <- factor(ifelse(rf_prob >= rf_threshold, "Yes", "No"), levels = c("No", "Yes"))
   metrics_rf <- compute_metrics(test$target, rf_class, rf_prob, "Random Forest")
   
-  # e. Comparaison et selection (critere F1)
+  # e. Metriques finales sur 2025 (jamais utilise pour choisir le modele)
   metrics_table <- data.frame(
     event     = event_key,
     model     = c("Logistic Regression", "Random Forest"),
@@ -188,18 +195,38 @@ for (event_key in names(WEATHER_EVENTS)) {
     stringsAsFactors = FALSE
   )
   
-  best_idx <- which.max(metrics_table$f1)
-  if (length(best_idx) == 0) {
-    best_idx <- which.max(metrics_table$auc)
-  }
-  if (length(best_idx) == 0) {
-    best_idx <- 1L
+  validation_lr_class <- factor(ifelse(lr_validation_prob >= lr_threshold, "Yes", "No"),
+                                levels = c("No", "Yes"))
+  validation_rf_class <- factor(ifelse(rf_validation_prob >= rf_threshold, "Yes", "No"),
+                                levels = c("No", "Yes"))
+  validation_lr_metrics <- compute_metrics(
+    validation$target, validation_lr_class, lr_validation_prob
+  )
+  validation_rf_metrics <- compute_metrics(
+    validation$target, validation_rf_class, rf_validation_prob
+  )
+  validation_f1 <- c(validation_lr_metrics$f1, validation_rf_metrics$f1)
+  validation_auc <- c(validation_lr_metrics$auc, validation_rf_metrics$auc)
+  best_idx <- if (any(is.finite(validation_f1))) {
+    which.max(replace(validation_f1, !is.finite(validation_f1), -Inf))
+  } else if (any(is.finite(validation_auc))) {
+    which.max(replace(validation_auc, !is.finite(validation_auc), -Inf))
+  } else {
+    1L
   }
 
   best_name  <- metrics_table$model[best_idx]
   best_model <- if (best_idx == 1L) lr_model else rf_model
   best_prob  <- if (best_idx == 1L) lr_prob  else rf_prob
   best_class <- if (best_idx == 1L) lr_class else rf_class
+  best_threshold <- if (best_idx == 1L) lr_threshold else rf_threshold
+  evaluation_status <- if (length(unique(test$target)) < 2L) {
+    "non_conclusive_single_class_test"
+  } else if (!is.finite(metrics_table$f1[best_idx])) {
+    "non_conclusive_no_positive_prediction"
+  } else {
+    "valid"
+  }
   
   cat(sprintf("  Gagnant : %s (F1: %.4f, AUC: %.4f)\n", 
               best_name, metrics_table$f1[best_idx], metrics_table$auc[best_idx]))
@@ -238,8 +265,10 @@ for (event_key in names(WEATHER_EVENTS)) {
     features      = FEATURES,
     metrics       = metrics_table[best_idx, ],
     importance    = importance_df,
-    threshold     = 0.5,
-    train_cutoff  = as.character(TRAIN_CUTOFF),
+    threshold     = best_threshold,
+    train_cutoff  = as.character(VALIDATION_START),
+    validation_cutoff = as.character(TEST_START),
+    evaluation_status = evaluation_status,
     city_order    = city_order,
     season_levels = SEASON_LEVELS,
     created_at    = Sys.time()
@@ -268,7 +297,8 @@ for (event_key in names(WEATHER_EVENTS)) {
     host     = config$host,
     port     = config$port,
     user     = config$user,
-    password = config$password
+    password = config$password,
+    connect_timeout = 5L
   )
   
   DBI::dbWriteTable(con2, "predictions_staging", test_preds,
