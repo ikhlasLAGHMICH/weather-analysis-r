@@ -321,7 +321,17 @@ ui <- navbarPage(
           column(6, plotlyOutput("humidity_chart", height = "340px"))
         ),
         hr(),
-        plotlyOutput("correlation_chart", height = "420px")
+        plotlyOutput("correlation_chart", height = "420px"),
+        hr(),
+        h4("Comment lire ce damier de couleurs ? 🎲", class = "section-title"),
+        div(style = "background: #1e2433; padding: 18px; border-radius: 8px; color: #ccd; border-left: 4px solid #00d4aa; font-size: 0.95em;",
+          p(strong("Cette 'matrice de correlation' montre si deux elements de la meteo sont lies entre eux :")),
+          tags$ul(style = "margin-bottom: 0;",
+            tags$li(tags$b("Rouge / Orange (Proches de 1) :"), " Les deux montent ensemble ! Par exemple, plus il fait chaud, plus on peut avoir d'orages."),
+            tags$li(tags$b("Bleu (Proches de -1) :"), " Ils fonctionnent a l'envers. Quand l'un monte, l'autre descend. Exemple : quand la pression atmospherique est tres forte, les nuages disparaissent !"),
+            tags$li(tags$b("Blanc / Proche de 0 :"), " Aucun rapport. Ce que fait l'un n'a aucun impact sur l'autre.")
+          )
+        )
       )
     )
   ),
