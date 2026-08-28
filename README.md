@@ -37,10 +37,10 @@ Application Shiny
 # Équipe et répartition
 
 | Membre | Responsabilité |
-|---|---|
+| --- | --- |
 | Ikhlas LAGHMICH | API + collecte + préparation des données |
 | Narcisse Cabrel TSAFACK FOUEGAP | Base SQL + qualité / structuration des données |
-| Maria MENNI| Analyse exploratoire + visualisations |
+| Maria MENNI | Analyse exploratoire + visualisations |
 | Gills Daryl KETCHA NZOUNDJI JIEPMOU | Machine Learning + Shiny / intégration finale |
 
 ---
@@ -207,7 +207,7 @@ Aucune anomalie n’a été détectée sur ces contrôles.
 ## Quelques statistiques de contrôle
 
 | Ville | Température min. | Température max. | Température moyenne |
-|---|---:|---:|---:|
+| --- | ---: | ---: | ---: |
 | Lille | -7.6 °C | 38.1 °C | 11.7 °C |
 | Paris | -6.1 °C | 39.1 °C | 12.5 °C |
 | Madrid | -11.1 °C | 41.5 °C | 15.9 °C |
@@ -397,6 +397,7 @@ Les résultats sont enregistrés dans les dossiers :
 figures/
 results/
 ```
+
 ## Données analysées
 
 L'analyse porte sur les données horaires de **Lille, Paris, Madrid, Rome et Stockholm**, sur la période **2021–2025**.
@@ -417,7 +418,7 @@ Plusieurs analyses permettent de comparer les températures entre les villes.
 ### Température moyenne par ville
 
 | Ville | Température moyenne |
-|---|---:|
+| --- | ---: |
 | Stockholm | 7,6 °C |
 | Lille | 11,7 °C |
 | Paris | 12,5 °C |
@@ -439,7 +440,7 @@ En hiver, Stockholm présente une moyenne d'environ **-1 °C**, alors que Rome a
 ### Nombre de jours de pluie
 
 | Ville | Jours de pluie | Taux |
-|---|---:|---:|
+| --- | ---: | ---: |
 | Stockholm | 905 | 49,6 % |
 | Lille | 1070 | 61,1 % |
 | Paris | 1027 | 58,6 % |
@@ -457,7 +458,7 @@ L'évolution mensuelle des précipitations met en évidence une forte variabilit
 ### Humidité relative moyenne
 
 | Ville | Humidité moyenne |
-|---|---:|
+| --- | ---: |
 | Stockholm | 78,9 % |
 | Lille | 78,3 % |
 | Paris | 76,3 % |
@@ -469,7 +470,7 @@ Stockholm, Lille et Paris présentent les niveaux d'humidité moyens les plus é
 ### Vitesse du vent
 
 | Ville | Moyenne | Maximum |
-|---|---:|---:|
+| --- | ---: | ---: |
 | Stockholm | 12,0 km/h | 42,0 km/h |
 | Lille | 14,1 km/h | 69,9 km/h |
 | Paris | 12,0 km/h | 52,4 km/h |
@@ -487,7 +488,7 @@ Les nuages de points montrent une relation négative entre la température et l'
 ### Matrice de corrélation
 
 | Relation | Corrélation |
-|---|---:|
+| --- | ---: |
 | Température – Humidité relative | -0,64 |
 | Humidité relative – Pression | 0,31 |
 | Humidité relative – Nébulosité | 0,29 |
@@ -581,6 +582,7 @@ Prédiction de **8 événements météorologiques** distincts (Pluie, Pluie fort
 ## Modèles testés
 
 Pour chaque intempérie, nous entraînons et mettons en compétition deux modèles :
+
 - **Régression Logistique** (rapide, interprétable)
 - **Random Forest** (plus complexe, capture les interactions non linéaires via `ranger`)
 
@@ -591,6 +593,7 @@ sur 2025. Le jeu de test n'est donc pas utilisé pour choisir le gagnant.
 ## Métriques d’évaluation
 
 Classification :
+
 - Accuracy
 - Precision
 - Recall
@@ -627,18 +630,12 @@ Restituer les analyses et prédictions dans une interface interactive et robuste
 ## Fonctionnalités réalisées
 
 L'application Shiny propose une interface "Dark Mode" professionnelle avec :
+
 - **Dashboard interactif** : Suivi des KPIs (Température, Jours de pluie, Précipitations).
 - **Visualisations avancées (Plotly)** : Évolution temporelle, comparaisons inter-villes, matrice de corrélation, diagrammes d'importance des variables.
 - **Filtres réactifs** : Filtrage croisé par Villes et par Dates sur l'ensemble des graphiques.
 - **Module de Prédiction ML** : Interface dynamique permettant de simuler les conditions du jour J pour prédire le risque d'intempérie à J+1 (Lazy loading autonome des modèles).
 - **Résilience (Fallback Cache)** : Mécanisme de tolérance aux pannes basculant automatiquement sur un cache local (`.rds`) si la base PostgreSQL est inaccessible.
-- graphiques interactifs ;
-- comparaison des villes ;
-- affichage des prédictions.
-
-## Captures / démonstration
-
-> À compléter.
 
 ## Lancement de l'application
 
@@ -688,4 +685,3 @@ weather-analysis-r/
 │
 └── shiny/
 ```
-
