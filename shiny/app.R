@@ -321,7 +321,17 @@ ui <- navbarPage(
           column(6, plotlyOutput("humidity_chart", height = "340px"))
         ),
         hr(),
-        plotlyOutput("correlation_chart", height = "420px")
+        plotlyOutput("correlation_chart", height = "420px"),
+        hr(),
+        h4("Comment lire ce damier de couleurs ? 🎲", class = "section-title"),
+        div(style = "background: #1e2433; padding: 18px; border-radius: 8px; color: #ccd; border-left: 4px solid #00d4aa; font-size: 0.95em;",
+          p(strong("Cette 'matrice de correlation' montre si deux elements de la meteo sont lies entre eux :")),
+          tags$ul(style = "margin-bottom: 0;",
+            tags$li(tags$b("Rouge / Orange (Proches de 1) :"), " Les deux montent ensemble ! Par exemple, plus il fait chaud, plus on peut avoir d'orages."),
+            tags$li(tags$b("Bleu (Proches de -1) :"), " Ils fonctionnent a l'envers. Quand l'un monte, l'autre descend. Exemple : quand la pression atmospherique est tres forte, les nuages disparaissent !"),
+            tags$li(tags$b("Blanc / Proche de 0 :"), " Aucun rapport. Ce que fait l'un n'a aucun impact sur l'autre.")
+          )
+        )
       )
     )
   ),
@@ -374,7 +384,18 @@ ui <- navbarPage(
         uiOutput("model_metrics_ui"),
         hr(),
         h4("Importance des variables (Random Forest)", class = "section-title"),
-        plotlyOutput("importance_chart", height = "350px")
+        plotlyOutput("importance_chart", height = "350px"),
+        hr(),
+        h4("Comprendre la meteo 🌤️", class = "section-title"),
+        div(style = "background: #1e2433; padding: 18px; border-radius: 8px; color: #ccd; border-left: 4px solid #ff9800; font-size: 0.95em;",
+          p(strong("Tu te demandes comment le robot devine le temps qu'il fera ? Il regarde ces indices :")),
+          tags$ul(style = "margin-bottom: 0;",
+            tags$li(tags$b("Nebulosite :"), " C'est le pourcentage de nuages. A 0%, grand soleil ! A 100%, ciel tout gris."),
+            tags$li(tags$b("Humidite :"), " C'est la quantite d'eau invisible dans l'air. Tres haute, on transpire et il risque de pleuvoir !"),
+            tags$li(tags$b("Pression (hPa) :"), " C'est le poids de l'air. Si la pression baisse vite, attention, une tempete ou la pluie approche ! (Le temps calme est autour de 1013 hPa)."),
+            tags$li(tags$b("Variables 'J-1' :"), " 'J-1' veut dire 'Hier'. Le robot regarde ce qu'il s'est passe la veille pour mieux deviner demain, car la meteo change rarement d'un coup de baguette magique !")
+          )
+        )
       )
     )
   ),
@@ -438,21 +459,20 @@ server <- function(input, output, session) {
     req(APP_DATA$mode == "db")
     cities <- .get_cities(prefix);  dates <- .get_dates(prefix)
     req(length(cities) > 0, !anyNA(dates))
-    APP_DATA$daily |>
-      filter(city %in% cities, date >= dates[1], date <= dates[2])
+    APP_DATA$daily[APP_DATA$daily$city %in% cities & APP_DATA$daily$date >= dates[1] & APP_DATA$daily$date <= dates[2], ]
   }
 
   .filter_monthly <- function(prefix) {
     if (APP_DATA$mode == "db") {
       cities <- .get_cities(prefix); dates <- .get_dates(prefix)
       req(length(cities) > 0, !anyNA(dates))
-      APP_DATA$monthly |>
-        filter(city %in% cities, date >= dates[1], date <= dates[2])
+      d <- APP_DATA$monthly
+      d$date <- as.Date(paste(d$year, d$month, "01", sep="-"))
+      d[d$city %in% cities & d$date >= dates[1] & d$date <= dates[2], ]
     } else if (APP_DATA$mode == "cache") {
       cities <- .get_cities(prefix); dates <- .get_dates(prefix)
       req(length(cities) > 0, !anyNA(dates))
-      APP_DATA$temperature_monthly |>
-        filter(city %in% cities, date >= dates[1], date <= dates[2])
+      APP_DATA$temperature_monthly[APP_DATA$temperature_monthly$city %in% cities & APP_DATA$temperature_monthly$date >= dates[1] & APP_DATA$temperature_monthly$date <= dates[2], ]
     }
   }
 
