@@ -374,7 +374,18 @@ ui <- navbarPage(
         uiOutput("model_metrics_ui"),
         hr(),
         h4("Importance des variables (Random Forest)", class = "section-title"),
-        plotlyOutput("importance_chart", height = "350px")
+        plotlyOutput("importance_chart", height = "350px"),
+        hr(),
+        h4("Comprendre la meteo 🌤️", class = "section-title"),
+        div(style = "background: #1e2433; padding: 18px; border-radius: 8px; color: #ccd; border-left: 4px solid #ff9800; font-size: 0.95em;",
+          p(strong("Tu te demandes comment le robot devine le temps qu'il fera ? Il regarde ces indices :")),
+          tags$ul(style = "margin-bottom: 0;",
+            tags$li(tags$b("Nebulosite :"), " C'est le pourcentage de nuages. A 0%, grand soleil ! A 100%, ciel tout gris."),
+            tags$li(tags$b("Humidite :"), " C'est la quantite d'eau invisible dans l'air. Tres haute, on transpire et il risque de pleuvoir !"),
+            tags$li(tags$b("Pression (hPa) :"), " C'est le poids de l'air. Si la pression baisse vite, attention, une tempete ou la pluie approche ! (Le temps calme est autour de 1013 hPa)."),
+            tags$li(tags$b("Variables 'J-1' :"), " 'J-1' veut dire 'Hier'. Le robot regarde ce qu'il s'est passe la veille pour mieux deviner demain, car la meteo change rarement d'un coup de baguette magique !")
+          )
+        )
       )
     )
   ),
