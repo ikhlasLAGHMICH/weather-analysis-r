@@ -438,21 +438,20 @@ server <- function(input, output, session) {
     req(APP_DATA$mode == "db")
     cities <- .get_cities(prefix);  dates <- .get_dates(prefix)
     req(length(cities) > 0, !anyNA(dates))
-    APP_DATA$daily |>
-      filter(city %in% cities, date >= dates[1], date <= dates[2])
+    APP_DATA$daily[APP_DATA$daily$city %in% cities & APP_DATA$daily$date >= dates[1] & APP_DATA$daily$date <= dates[2], ]
   }
 
   .filter_monthly <- function(prefix) {
     if (APP_DATA$mode == "db") {
       cities <- .get_cities(prefix); dates <- .get_dates(prefix)
       req(length(cities) > 0, !anyNA(dates))
-      APP_DATA$monthly |>
-        filter(city %in% cities, date >= dates[1], date <= dates[2])
+      d <- APP_DATA$monthly
+      d$date <- as.Date(paste(d$year, d$month, "01", sep="-"))
+      d[d$city %in% cities & d$date >= dates[1] & d$date <= dates[2], ]
     } else if (APP_DATA$mode == "cache") {
       cities <- .get_cities(prefix); dates <- .get_dates(prefix)
       req(length(cities) > 0, !anyNA(dates))
-      APP_DATA$temperature_monthly |>
-        filter(city %in% cities, date >= dates[1], date <= dates[2])
+      APP_DATA$temperature_monthly[APP_DATA$temperature_monthly$city %in% cities & APP_DATA$temperature_monthly$date >= dates[1] & APP_DATA$temperature_monthly$date <= dates[2], ]
     }
   }
 
