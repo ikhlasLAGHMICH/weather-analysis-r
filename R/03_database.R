@@ -75,7 +75,8 @@ con <- DBI::dbConnect(
   host = config$host,
   port = config$port,
   user = config$user,
-  password = config$password
+  password = config$password,
+  connect_timeout = 5L
 )
 
 if (!DBI::dbIsValid(con)) {
@@ -90,7 +91,10 @@ if (length(missing_tables) > 0) {
 }
 
 message("Import PostgreSQL...")
-{
+transaction_open <- FALSE
+tryCatch({
+  DBI::dbBegin(con)
+  transaction_open <- TRUE
   for (i in seq_len(nrow(city_source))) {
     dbExecute(con, paste(
       "INSERT INTO cities (name, latitude, longitude) VALUES ($1, $2, $3)",
@@ -139,7 +143,6 @@ message("Import PostgreSQL...")
     " AVG(cloud_cover), AVG(wind_speed_10m), MAX(wind_speed_10m), MAX(rain_flag)",
     "FROM weather_hourly GROUP BY city_id, datetime::date"
   ))
-}
 
 scalar <- function(sql) as.numeric(dbGetQuery(con, sql)[[1]][1])
 checks <- c(
@@ -193,7 +196,17 @@ cat(sprintf("Predictions          : %s (non modifiées)\n", checks["predictions"
 cat(sprintf("Status               : %s\n", if (ok) "OK" else "ÉCHEC"))
 cat("========================================\n")
 
-DBI::dbDisconnect(con)
-
 if (!ok) stop("Les contrôles de cohérence PostgreSQL ont échoué.", call. = FALSE)
+DBI::dbCommit(con)
+transaction_open <- FALSE
+}, error = function(e) {
+  if (transaction_open && DBI::dbIsValid(con)) {
+    try(DBI::dbRollback(con), silent = TRUE)
+    transaction_open <<- FALSE
+  }
+  if (DBI::dbIsValid(con)) DBI::dbDisconnect(con)
+  stop(e)
+})
+
+DBI::dbDisconnect(con)
 message("Import PostgreSQL terminé avec succès.")

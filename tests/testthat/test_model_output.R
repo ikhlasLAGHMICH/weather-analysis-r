@@ -46,6 +46,16 @@ test_that("rain_model.rds : champs obligatoires presents", {
   }
 })
 
+test_that("les nouveaux bundles exposent le statut d'evaluation", {
+  skip_if(!file.exists(.rp("results", "rain_model.rds")), "Executez `make model`")
+  bundle <- readRDS(.rp("results", "rain_model.rds"))
+  skip_if(!"evaluation_status" %in% names(bundle), "Modele genere avant la correction")
+  expect_true(bundle$evaluation_status %in% c(
+    "valid", "non_conclusive_single_class_test",
+    "non_conclusive_no_positive_prediction"
+  ))
+})
+
 test_that("rain_model.rds : model_name est LR ou RF", {
   skip_if(!file.exists(.rp("results", "rain_model.rds")), "Executez `make model`")
   bundle <- readRDS(.rp("results", "rain_model.rds"))

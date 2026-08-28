@@ -109,7 +109,7 @@ test_that("predict_weather_event : prediction reproductible a la meme entree", {
 test_that("testServer : KPI reactive reagit aux changements d'input", {
   skip_if(!file.exists(.rp("results", "analysis_objects.rds")),
           "Cache RDS absent — pas de test serveur Shiny")
-  skip_if(!file.exists(.rp("results", "best_model.rds")),
+  skip_if(!file.exists(.rp("results", "rain_model.rds")),
           "Modele absent — executez `make model`")
 
   env <- new.env()
@@ -149,4 +149,27 @@ test_that("app.R definit bien shinyApp(ui, server)", {
   content <- paste(readLines(app_path, warn=FALSE), collapse="\n")
   expect_true(grepl("shinyApp",   content, fixed=TRUE))
   expect_true(grepl("navbarPage", content, fixed=TRUE))
+})
+
+test_that("app.R accepte les valeurs meteo egales a zero", {
+  content <- paste(readLines(.rp("shiny", "app.R"), warn=FALSE), collapse="\n")
+  expect_true(grepl("all(is.finite(numeric_inputs))", content, fixed=TRUE))
+})
+
+test_that("app.R utilise de vraies saisies J-1", {
+  content <- paste(readLines(.rp("shiny", "app.R"), warn=FALSE), collapse="\n")
+  expect_true(grepl("pressure_lag1    = input$pred_pressure_lag1", content, fixed=TRUE))
+  expect_true(grepl("humidity_lag1    = input$pred_humidity_lag1", content, fixed=TRUE))
+})
+
+test_that("app.R derive la saison depuis le mois", {
+  content <- paste(readLines(.rp("shiny", "app.R"), warn=FALSE), collapse="\n")
+  expect_true(grepl("season           = assign_season(pred_month)", content, fixed=TRUE))
+  expect_false(grepl("selectInput(\"pred_season\"", content, fixed=TRUE))
+})
+
+test_that("les filtres de villes utilisent des cases explicites", {
+  content <- paste(readLines(.rp("shiny", "app.R"), warn=FALSE), collapse="\n")
+  expect_true(grepl("checkboxGroupInput(", content, fixed=TRUE))
+  expect_true(grepl("Villes (cochez pour afficher)", content, fixed=TRUE))
 })

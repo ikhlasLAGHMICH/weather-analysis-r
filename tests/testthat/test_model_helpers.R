@@ -155,6 +155,19 @@ test_that("compute_metrics : AUC NA si predicted_prob absent", {
   expect_true(is.na(m$auc))
 })
 
+test_that("optimize_f1_threshold : retourne un seuil valide", {
+  actual <- factor(c("No", "No", "Yes", "Yes"), levels=c("No", "Yes"))
+  probabilities <- c(0.1, 0.4, 0.45, 0.9)
+  threshold <- optimize_f1_threshold(actual, probabilities)
+  expect_gte(threshold, 0)
+  expect_lte(threshold, 1)
+})
+
+test_that("optimize_f1_threshold : fallback pour une seule classe", {
+  actual <- factor(rep("No", 4), levels=c("No", "Yes"))
+  expect_equal(optimize_f1_threshold(actual, c(0.1, 0.2, 0.3, 0.4)), 0.5)
+})
+
 # ── engineer_features ─────────────────────────────────────────
 
 .make_synthetic_daily <- function(n = 20L, city = "Paris") {
